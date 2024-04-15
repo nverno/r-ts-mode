@@ -48,21 +48,14 @@
      ((node-is ")") parent-bol 0)
      ((node-is "]") parent-bol 0)
      ((node-is "else") parent-bol 0)
-     ;; closing '}' => standalone-parent to match left_assignment opener
-     ((node-is "brace_list") standalone-parent 0)
-     ((parent-is ,(rx bow (or "brace_list" "paren_list") eow))
-      standalone-parent r-ts-mode-indent-offset)
-     ((parent-is ,(rx bow (or "special" "pipe") eow))
-      parent-bol r-ts-mode-indent-offset)
+     ((node-is "braced_expression") standalone-parent 0)
+     ((parent-is "braced_expression") standalone-parent r-ts-mode-indent-offset)
      ((parent-is ,(rx bow (or "if" "while" "repeat" "for") eow))
       parent-bol r-ts-mode-indent-offset)
-     ((parent-is "binary") parent-bol r-ts-mode-indent-offset)
+     ((parent-is "binary_operator") parent-bol r-ts-mode-indent-offset)
      ((parent-is "function_definition") parent-bol r-ts-mode-indent-offset)
-     ((parent-is "call") parent-bol r-ts-mode-indent-offset)
-     ((parent-is "left_assignment") parent-bol r-ts-mode-indent-offset)
      ((node-is "arguments") parent-bol r-ts-mode-indent-offset)
-     ((parent-is "arguments") first-sibling 0)
-     ((parent-is "formal_parameters") first-sibling 1)
+     ((parent-is "arguments") standalone-parent r-ts-mode-indent-offset)
      ((parent-is "string") no-indent)
      (no-node parent-bol 0)))
   "Tree-sitter indent rules for `r-ts-mode'.")
@@ -72,11 +65,11 @@
 
 ;; Keywords that are anonymous nodes in grammar
 (defconst r-ts-mode--keywords
-  '("if" "else" "repeat" "while" "for" "in" "switch" "function"))
+  '("if" "else" "repeat" "while" "for" "in" "function"))
 
 ;; Keywords to highlight in call expressions
 (defconst r-ts-mode--keyword-calls
-  '("return" "on.exit" "stop" ".Defunct" "tryCatch"
+  '("on.exit" "stop" "stopifnot" ".Defunct" "tryCatch"
     "withRestarts" "invokeRestart"
     "recover" "browser"))
 
@@ -88,16 +81,17 @@
     "signalCondition" "withCallingHandlers"))
 
 (defconst r-ts-mode--operators
-  '(":=" "=" "<-" "<<-" "->" "->>"
-    "|>" "|"
-    "!" "&&" "||" "&"
+  '("?" ":=" "=" "<-" "<<-" "->" "->>"
+    "!" "~" "|>" "||" "|" "&&"  "&"
     "<" "<=" ">" ">=" "==" "!="
-    "+" "-" "*" "/" "?" "~" "^"
-    "$" "@" "\\" "::" ":::" ":")
+    "+" "-" "*" "/" "::" ":::"
+    "**" "^" "$" "@" ":"
+    ;; "\\" "!"
+    "special")
   "R operators for tree-sitter font-locking.")
 
 (defconst r-ts-mode--delimiters
-  '("," ";")
+  '(";")
   "R delimiters for tree-sitter font-locking.")
 
 (defconst r-ts-mode--brackets
@@ -106,7 +100,7 @@
 (defvar r-ts-mode-feature-list
   '(( comment definition)
     ( keyword string escape-sequence)
-    ( builtin type constant number assignment function) ; property
+    ( builtin type constant number assignment function property)
     ( operator variable bracket delimiter))
   "`treesit-font-lock-feature-list' for `r-ts-mode'.")
 
@@ -120,14 +114,14 @@
    :feature 'string
    '((string) @font-lock-string-face)
 
-   :language 'r
-   :feature 'escape-sequence
-   :override t
-   '((escape_sequence) @font-lock-escape-face)
-
+   ;; :language 'r
+   ;; :feature 'escape-sequence
+   ;; :override t
+   ;; '((escape_sequence) @font-lock-escape-face)
+   
    :language 'r
    :feature 'keyword
-   `([,@r-ts-mode--keywords (dots) (break) (next)] @font-lock-keyword-face
+   `([,@r-ts-mode--keywords (dots) (break) (next) (return)] @font-lock-keyword-face
 
      (call
       function: ((identifier) @font-lock-keyword-face
@@ -143,37 +137,34 @@
 
    :language 'r
    :feature 'definition
-   '((formal_parameters (identifier) @font-lock-variable-name-face)
-
-     (formal_parameters
-      (default_parameter
-       name: (identifier) @font-lock-variable-name-face))
-
-     (default_argument
+   '((parameter
       name: (identifier) @font-lock-variable-name-face)
 
-     (left_assignment
-      name: (identifier) @font-lock-function-name-face _
-      value: (function_definition))
+     (argument
+      name: (identifier) @font-lock-variable-name-face)
 
-     (left_assignment
-      name: (identifier) @font-lock-variable-name-face _
-      value: (_))
+     (binary_operator
+      lhs: (identifier) @font-lock-function-name-face
+      operator: "<-"
+      rhs: (function_definition))
 
-     (for
-      name: (identifier) @font-lock-variable-name-face))
+     (binary_operator
+      lhs: (identifier) @font-lock-variable-name-face
+      operator: "<-"
+      rhs: (_))
+
+     (for_statement
+      variable: (identifier) @font-lock-variable-name-face))
 
    :language 'r
    :feature 'builtin
-   '((dollar ((identifier) @font-lock-builtin-face
-              (:match "self" @font-lock-builtin-face))))
+   '(("$" ((identifier) @font-lock-builtin-face
+           (:match "self" @font-lock-builtin-face))))
 
    :language 'r
    :feature 'type
-   '((namespace_get
-      namespace: (identifier) @font-lock-type-face)
-     (namespace_get_internal
-      namespace: (identifier) @font-lock-type-face))
+   '((namespace_operator
+      lhs: (identifier) @font-lock-type-face))
 
    :language 'r
    :feature 'constant
@@ -185,13 +176,16 @@
    :feature 'function
    '((call function: (identifier) @font-lock-function-call-face)
 
-     (call function: (namespace_get
-                      function: (identifier) @font-lock-function-call-face))
+     (call function: (namespace_operator
+                      rhs: (identifier) @font-lock-function-call-face))
 
-     (call function: (namespace_get_internal
-                      function: (identifier) @font-lock-function-call-face))
+     (call function: (extract_operator
+                      rhs: (identifier) @font-lock-function-call-face)))
 
-     (call function: (dollar _ (identifier) @font-lock-function-call-face)))
+   :language 'r
+   :feature 'property
+   '((extract_operator
+      rhs: (identifier) @font-lock-property-use-face))
 
    ;; :language 'r
    ;; :feature 'assignment
@@ -199,10 +193,7 @@
 
    :language 'r
    :feature 'variable
-   '((dollar (identifier) @font-lock-variable-use-face
-             "$" (identifier) @font-lock-property-use-face)
-
-     (identifier) @font-lock-variable-use-face)
+   '((identifier) @font-lock-variable-use-face)
 
    :language 'r
    :feature 'number
@@ -210,11 +201,11 @@
 
    :language 'r
    :feature 'operator
-   `([,@r-ts-mode--operators (special)] @font-lock-operator-face)
+   `([,@r-ts-mode--operators] @font-lock-operator-face)
 
    :language 'r
    :feature 'delimiter
-   `([,@r-ts-mode--delimiters] @font-lock-delimiter-face)
+   `([,@r-ts-mode--delimiters (comma)] @font-lock-delimiter-face)
 
    :language 'r
    :feature 'bracket

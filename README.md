@@ -3,11 +3,11 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 This package is compatible with and was tested against the tree-sitter grammar
-for R found at [tree-sitter-r](https://github.com/r-lib/tree-sitter-r) on the
-'main' branch. 
+for R found at [tree-sitter-r](https://github.com/r-lib/tree-sitter-r). 
 
-Use branch 'next' for compatability with the tree-sitter-r [next
-branch](https://github.com/r-lib/tree-sitter-r/tree/next).
+The master branch uses the old grammar from the [tree-sitter-r main
+branch](https://github.com/r-lib/tree-sitter-r/tree/main) and 'next' branch (preferred)
+uses the latest grammar from the [next branch](https://github.com/r-lib/tree-sitter-r/tree/next).
 
 
 This mode provides:
@@ -19,7 +19,7 @@ This mode provides:
 + navigation
  
 
-![example](doc/example.png)
+![example](doc/r-ts-mode.png)
 
 ## Installing
 
