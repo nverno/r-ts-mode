@@ -32,7 +32,7 @@
 (require 'ess-r-mode)                   ; syntax
 
 
-(defcustom r-ts-mode-indent-offset 4
+(defcustom r-ts-mode-indent-offset 2
   "Number of spaces for each indentation step in `r-ts-mode'."
   :type 'integer
   :safe 'integerp
