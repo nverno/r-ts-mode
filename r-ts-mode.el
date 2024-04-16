@@ -4,8 +4,8 @@
 ;; URL: https://github.com/nverno/r-ts-mode
 ;; Package-Requires: ((emacs "29.1") (ess "24"))
 ;; Created: 23 March 2024
-;; Version: 0.0.1
-;; Keywords: languages R tree-sitter
+;; Version: 0.1.0
+;; Keywords: languages, R, tree-sitter
 
 ;; This file is not part of GNU Emacs.
 ;;
@@ -26,10 +26,15 @@
 
 ;;; Commentary:
 ;;
+;; Major mode for R using tree-sitter.
+;;
+;; This mode is compatible with the R tree-sitter grammar from
+;; https://github.com/r-lib/tree-sitter-r/tree/next (4/16/24 - the next branch).
+;;
 ;;; Code:
 
 (require 'treesit)
-(require 'ess-r-mode)                   ; syntax
+(require 'ess-r-mode) ; syntax, `ess-r-customize-alist', `ess-r-prettify-symbols'
 
 
 (defcustom r-ts-mode-indent-offset 2
@@ -49,16 +54,18 @@
      ((node-is "]") parent-bol 0)
      ((node-is "else") parent-bol 0)
      ((node-is "braced_expression") standalone-parent 0)
-     ((parent-is "braced_expression") standalone-parent r-ts-mode-indent-offset)
+     ((parent-is ,(rx bol (or "braced_expression" "parenthesized_expression")))
+      standalone-parent r-ts-mode-indent-offset)
      ((parent-is ,(rx bow (or "if" "while" "repeat" "for") eow))
       parent-bol r-ts-mode-indent-offset)
      ((parent-is "binary_operator") parent-bol r-ts-mode-indent-offset)
      ((parent-is "function_definition") parent-bol r-ts-mode-indent-offset)
+     ((parent-is "parameters") parent-bol r-ts-mode-indent-offset)
      ((node-is "arguments") parent-bol r-ts-mode-indent-offset)
      ((parent-is "arguments") standalone-parent r-ts-mode-indent-offset)
      ((parent-is "string") no-indent)
      (no-node parent-bol 0)))
-  "Tree-sitter indent rules for `r-ts-mode'.")
+  "Tree-sitter indent rules for R.")
 
 
 ;;; Font-locking
@@ -86,16 +93,13 @@
     "<" "<=" ">" ">=" "==" "!="
     "+" "-" "*" "/" "::" ":::"
     "**" "^" "$" "@" ":"
-    ;; "\\" "!"
+    ;; "\\"
     "special")
   "R operators for tree-sitter font-locking.")
 
-(defconst r-ts-mode--delimiters
-  '(";")
-  "R delimiters for tree-sitter font-locking.")
-
 (defconst r-ts-mode--brackets
-  '("(" ")" "[" "]" "[[" "]]" "{" "}"))
+  '("(" ")" "[" "]" "[[" "]]" "{" "}")
+  "R brackets for tree-sitter font-locking.")
 
 (defvar r-ts-mode-feature-list
   '(( comment definition)
@@ -118,7 +122,7 @@
    ;; :feature 'escape-sequence
    ;; :override t
    ;; '((escape_sequence) @font-lock-escape-face)
-   
+
    :language 'r
    :feature 'keyword
    `([,@r-ts-mode--keywords (dots) (break) (next) (return)] @font-lock-keyword-face
@@ -133,7 +137,14 @@
       function: ((identifier) @font-lock-preprocessor-face
                  (:match ,(rx-to-string
                            `(seq bos (or ,@r-ts-mode--modifiers) eos))
-                         @font-lock-preprocessor-face))))
+                         @font-lock-preprocessor-face)))
+     ;; Lambda operator
+     (function_definition
+      name: "\\" @font-lock-keyword-face))
+
+   :language 'r
+   :feature 'operator
+   `([,@r-ts-mode--operators] @font-lock-operator-face)
 
    :language 'r
    :feature 'definition
@@ -200,19 +211,14 @@
    '([(integer) (float) (complex)] @font-lock-number-face)
 
    :language 'r
-   :feature 'operator
-   `([,@r-ts-mode--operators] @font-lock-operator-face)
-
-   :language 'r
    :feature 'delimiter
-   `([,@r-ts-mode--delimiters (comma)] @font-lock-delimiter-face)
+   '([";" (comma)] @font-lock-delimiter-face)
 
    :language 'r
    :feature 'bracket
    `([,@r-ts-mode--brackets] @font-lock-bracket-face))
   "Tree-sitter font-lock settings for R.")
 
-;;; Mode
 
 ;;;###autoload
 (define-derived-mode r-ts-mode prog-mode "R"
@@ -227,9 +233,17 @@
     (setq-local comment-start "# ")
     (setq-local comment-end "")
     (setq-local comment-start-skip (rx "#" (* (syntax whitespace))))
+
+    ;; ESS config from `ess-r-mode'
     (setq-local paragraph-start (concat "\\s-*$\\|" page-delimiter))
     (setq-local paragraph-separate (concat "\\s-*$\\|" page-delimiter))
     (setq-local paragraph-ignore-fill-prefix t)
+    (setq-local electric-layout-rules '((?{ . after)))
+    (setq-local prettify-symbols-alist ess-r-prettify-symbols)
+    (setq-local add-log-current-defun-header-regexp "^\\(.+\\)\\s-+<-[ \t\n]*function")
+
+    ;; For inferior ess
+    (ess-setq-vars-local ess-r-customize-alist)
 
     ;; Indentation
     (setq-local treesit-simple-indent-rules r-ts-mode--indent-rules
@@ -238,6 +252,7 @@
     ;; Font-Locking
     (setq-local treesit-font-lock-settings r-ts-mode--font-lock-settings)
     (setq-local treesit-font-lock-feature-list r-ts-mode-feature-list)
+
 
     ;; TODO: Navigation
     (setq-local treesit-defun-type-regexp
@@ -249,6 +264,11 @@
                 '(("Function" "\\`function_definition'")))
 
     (treesit-major-mode-setup)))
+
+
+;; (derived-mode-add-parents 'r-ts-mode '(ess-r-mode))
+(if (treesit-ready-p 'r)
+    (add-to-list 'auto-mode-alist '("\\.R\\'" . r-ts-mode)))
 
 (provide 'r-ts-mode)
 ;; Local Variables:
