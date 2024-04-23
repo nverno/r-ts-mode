@@ -212,7 +212,7 @@
 
    :language 'r
    :feature 'delimiter
-   '([";" (comma)] @font-lock-delimiter-face)
+   '([(comma)] @font-lock-delimiter-face)
 
    :language 'r
    :feature 'bracket
