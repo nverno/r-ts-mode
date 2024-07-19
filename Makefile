@@ -11,7 +11,7 @@ dev: $(TSDIR)
 $(TSDIR):
 	@git clone https://github.com/r-lib/tree-sitter-r
 	@printf "\33[1m\33[31mNote\33[22m npm build can take a while" >&2
-	@cd $(TSDIR) && git checkout next &&                   \
+	@cd $(TSDIR) && git checkout main &&                   \
 		npm --loglevel=info --progress=true install && \
 		npm run build
 

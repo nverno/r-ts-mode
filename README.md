@@ -3,13 +3,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 This package is compatible with and was tested against the tree-sitter grammar
-for R found at [tree-sitter-r](https://github.com/r-lib/tree-sitter-r/tree/next).
-
-The master branch uses the latest grammar from the tree-sitter-r [next
-branch](https://github.com/r-lib/tree-sitter-r/tree/next).
-The 'main' branch uses the old grammar from the tree-sitter-r [main
-branch](https://github.com/r-lib/tree-sitter-r/tree/main).
-
+for R found at [tree-sitter-r](https://github.com/r-lib/tree-sitter-r).
 
 This mode provides:
 + indentation
@@ -33,14 +27,9 @@ Tree-sitter starter guide: https://git.savannah.gnu.org/cgit/emacs.git/tree/admi
 Add the source to `treesit-language-source-alist`. 
 
 ```elisp
-;; Use the 'next' branch for latest grammar
 (add-to-list
  'treesit-language-source-alist
- '(r "https://github.com/r-lib/tree-sitter-r" "next"))
-;; Older grammar used by 'main' branch
-;; (add-to-list
-;; 'treesit-language-source-alist
-;; '(r "https://github.com/r-lib/tree-sitter-r"))
+ '(r "https://github.com/r-lib/tree-sitter-r"))
 ```
 
 Then run `M-x treesit-install-language-grammar` and select `r` to install.

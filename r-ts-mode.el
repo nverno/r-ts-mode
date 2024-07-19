@@ -118,10 +118,10 @@
    :feature 'string
    '((string) @font-lock-string-face)
 
-   ;; :language 'r
-   ;; :feature 'escape-sequence
-   ;; :override t
-   ;; '((escape_sequence) @font-lock-escape-face)
+   :language 'r
+   :feature 'escape-sequence
+   :override t
+   '((escape_sequence) @font-lock-escape-face)
 
    :language 'r
    :feature 'keyword

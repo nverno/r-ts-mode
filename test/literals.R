@@ -32,11 +32,11 @@ _foo
 "#"
 '#'
 
-"\"
+"\""
 
-'\'
+'\''
 
-`\`
+## `\`
 
 r"(raw string)"
 R"{another raw string}"
