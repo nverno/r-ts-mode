@@ -150,9 +150,8 @@
    :feature 'definition
    '((parameter
       name: (identifier) @font-lock-variable-name-face)
-
      (argument
-      name: (identifier) @font-lock-variable-name-face)
+      name: (identifier) @font-lock-property-name-face)
 
      (binary_operator
       lhs: (identifier) @font-lock-function-name-face
