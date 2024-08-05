@@ -34,8 +34,12 @@
 ;;; Code:
 
 (require 'treesit)
-(require 'ess-r-mode) ; syntax, `ess-r-customize-alist', `ess-r-prettify-symbols'
+(require 'ess-r-mode nil t) ; syntax, `ess-r-customize-alist', `ess-r-prettify-symbols'
 
+(defvar ess-r-mode-syntax-table)
+(defvar ess-r-prettify-symbols)
+(defvar ess-r-customize-alist)
+(declare-function ess-setq-vars-local "")
 
 (defcustom r-ts-mode-indent-offset 2
   "Number of spaces for each indentation step in `r-ts-mode'."
@@ -230,6 +234,7 @@
 (defun r-ts-mode--imenu-p (node)
   "Return non-nil if NODE should be included in imenu."
   (equal "binary_operator" (treesit-node-type (treesit-node-parent node))))
+
 
 ;;;###autoload
 (define-derived-mode r-ts-mode prog-mode "R"
