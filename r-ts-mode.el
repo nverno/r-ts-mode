@@ -28,8 +28,8 @@
 ;;
 ;; Major mode for R using tree-sitter.
 ;;
-;; This mode is compatible with the R tree-sitter grammar from
-;; https://github.com/r-lib/tree-sitter-r/tree/next (4/16/24 - the next branch).
+;; This mode requires the tree-sitter parser from
+;; https://github.com/r-lib/tree-sitter-r.
 ;;
 ;;; Code:
 
@@ -219,6 +219,18 @@
   "Tree-sitter font-lock settings for R.")
 
 
+;;; Imenu
+
+(defun r-ts-mode--defun-name (node)
+  "Find name of NODE."
+  (treesit-node-text
+   (treesit-node-child-by-field-name
+    (treesit-node-parent node) "lhs")))
+
+(defun r-ts-mode--imenu-p (node)
+  "Return non-nil if NODE should be included in imenu."
+  (equal "binary_operator" (treesit-node-type (treesit-node-parent node))))
+
 ;;;###autoload
 (define-derived-mode r-ts-mode prog-mode "R"
   "Major mode for editing R, powered by tree-sitter."
@@ -233,16 +245,18 @@
     (setq-local comment-end "")
     (setq-local comment-start-skip (rx "#" (* (syntax whitespace))))
 
-    ;; ESS config from `ess-r-mode'
     (setq-local paragraph-start (concat "\\s-*$\\|" page-delimiter))
     (setq-local paragraph-separate (concat "\\s-*$\\|" page-delimiter))
     (setq-local paragraph-ignore-fill-prefix t)
     (setq-local electric-layout-rules '((?{ . after)))
-    (setq-local prettify-symbols-alist ess-r-prettify-symbols)
-    (setq-local add-log-current-defun-header-regexp "^\\(.+\\)\\s-+<-[ \t\n]*function")
+    (setq-local add-log-current-defun-header-regexp
+                "^\\(.+\\)\\s-+<-[ \t\n]*function")
 
-    ;; For inferior ess
-    (ess-setq-vars-local ess-r-customize-alist)
+    (when (require 'ess-r-mode nil t)
+      (setq-local prettify-symbols-alist ess-r-prettify-symbols)
+
+      ;; For inferior ess
+      (ess-setq-vars-local ess-r-customize-alist))
 
     ;; Indentation
     (setq-local treesit-simple-indent-rules r-ts-mode--indent-rules
@@ -252,20 +266,22 @@
     (setq-local treesit-font-lock-settings r-ts-mode--font-lock-settings)
     (setq-local treesit-font-lock-feature-list r-ts-mode-feature-list)
 
+    ;; Imenu
+    (setq-local treesit-simple-imenu-settings
+                '(("Function" "\\`function_definition\\'" r-ts-mode--imenu-p)))
 
-    ;; TODO: Navigation
+    (setq-local treesit-defun-name-function #'r-ts-mode--defun-name)
     (setq-local treesit-defun-type-regexp
                 (rx (or "lambda_function" "function_definition")))
-    ;; (setq-local treesit-defun-name-function #'r-ts-mode--defun-name)
 
-    ;; TODO: Imenu
-    (setq-local treesit-simple-imenu-settings
-                '(("Function" "\\`function_definition'")))
+    ;; TODO: Navigation
+    (setq-local treesit-thing-settings nil)
 
     (treesit-major-mode-setup)))
 
 
-;; (derived-mode-add-parents 'r-ts-mode '(ess-r-mode))
+(derived-mode-add-parents 'r-ts-mode '(ess-r-mode))
+
 (if (treesit-ready-p 'r)
     (add-to-list 'auto-mode-alist '("\\.R\\'" . r-ts-mode)))
 

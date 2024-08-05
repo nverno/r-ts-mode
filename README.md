@@ -8,10 +8,10 @@ for R found at [tree-sitter-r](https://github.com/r-lib/tree-sitter-r).
 This mode provides:
 + indentation
 + font-locking
++ imenu
 
 **TODO**:
-+ imenu
-+ navigation
++ navigation support for tree-sitter things
  
 
 ![example](doc/r-ts-mode.png)
