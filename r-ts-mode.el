@@ -34,12 +34,12 @@
 ;;; Code:
 
 (require 'treesit)
-(require 'ess-r-mode nil t) ; syntax, `ess-r-customize-alist', `ess-r-prettify-symbols'
+(require 'ess-r-mode nil t) ; `ess-r-customize-alist', `ess-r-prettify-symbols'
 
-(defvar ess-r-mode-syntax-table)
 (defvar ess-r-prettify-symbols)
 (defvar ess-r-customize-alist)
 (declare-function ess-setq-vars-local "")
+
 
 (defcustom r-ts-mode-indent-offset 2
   "Number of spaces for each indentation step in `r-ts-mode'."
@@ -62,9 +62,14 @@
       standalone-parent r-ts-mode-indent-offset)
      ((parent-is ,(rx bow (or "if" "while" "repeat" "for") eow))
       parent-bol r-ts-mode-indent-offset)
+     ;; ((n-p-gp nil "binary_operator" "if_statement") parent 0)
+     ;; ((match "binary_operator" "if_statement") parent 0)
      ((parent-is "binary_operator") parent-bol r-ts-mode-indent-offset)
      ((parent-is "function_definition") parent-bol r-ts-mode-indent-offset)
      ((parent-is "parameters") parent-bol r-ts-mode-indent-offset)
+     ;; To align arguments:
+     ;; ((match "argument" nil nil 1 1) standalone-parent r-ts-mode-indent-offset)
+     ;; ((parent-is "arguments") (nth-sibling 1) 0)
      ((node-is "arguments") parent-bol r-ts-mode-indent-offset)
      ((parent-is "arguments") standalone-parent r-ts-mode-indent-offset)
      ((parent-is "string") no-indent)
@@ -236,11 +241,52 @@
   (equal "binary_operator" (treesit-node-type (treesit-node-parent node))))
 
 
+;;; Syntax
+(defvar r-ts-mode-syntax-table
+  (let ((table (make-syntax-table)))
+    ;; From `S-syntax-table' (notes included)
+    (modify-syntax-entry ?\\ "\\" table)
+    (modify-syntax-entry ?+  "."  table)
+    (modify-syntax-entry ?-  "."  table)
+    (modify-syntax-entry ?=  "."  table)
+    (modify-syntax-entry ?%  "."  table)
+    (modify-syntax-entry ?<  "."  table)
+    (modify-syntax-entry ?>  "."  table)
+    (modify-syntax-entry ?&  "."  table)
+    (modify-syntax-entry ?|  "."  table)
+    (modify-syntax-entry ?\' "\"" table)
+    (modify-syntax-entry ?\" "\"" table)
+    (modify-syntax-entry ?#  "<"  table)  ; open comment
+    (modify-syntax-entry ?\n ">"  table)  ; close comment
+    (modify-syntax-entry ?.  "_"  table)  ; see above/below,
+                                        ; plus consider separation.
+    (modify-syntax-entry ?$  "_"  table)  ; foo$comp = 1 symbol(completion)
+    (modify-syntax-entry ?@  "_"  table)  ; foo@slot = 1 symbol(completion)
+    (modify-syntax-entry ?_  "_"  table)
+    (modify-syntax-entry ?:  "_"  table)
+    (modify-syntax-entry ?*  "."  table)
+    (modify-syntax-entry ?<  "."  table)
+    (modify-syntax-entry ?>  "."  table)
+    (modify-syntax-entry ?/  "."  table)
+    ;; Rest from `ess-r-mode-syntax-table' (notes included)
+    ;; Letting Emacs treat backquoted names and %ops% as strings solves
+    ;; many problems with regard to nested strings and quotes
+    (modify-syntax-entry ?` "\"" table)
+    (modify-syntax-entry ?% "\"" table)
+    ;; Underscore is valid in R symbols
+    (modify-syntax-entry ?_ "_" table)
+    ;; (modify-syntax-entry ?: "." table)
+    (modify-syntax-entry ?@ "." table)
+    (modify-syntax-entry ?$ "." table)
+    (modify-syntax-entry ?\\ "." table)
+    table)
+  "Syntax table for `r-ts-mode'.")
+
 ;;;###autoload
 (define-derived-mode r-ts-mode prog-mode "R"
   "Major mode for editing R, powered by tree-sitter."
   :group 'R
-  :syntax-table ess-r-mode-syntax-table
+  :syntax-table r-ts-mode-syntax-table
 
   (when (treesit-ready-p 'r)
     (treesit-parser-create 'r)
@@ -285,7 +331,8 @@
     (treesit-major-mode-setup)))
 
 
-(derived-mode-add-parents 'r-ts-mode '(ess-r-mode))
+(when (fboundp 'derived-mode-add-parents)
+  (derived-mode-add-parents 'r-ts-mode '(ess-r-mode)))
 
 (if (treesit-ready-p 'r)
     (add-to-list 'auto-mode-alist '("\\.R\\'" . r-ts-mode)))
