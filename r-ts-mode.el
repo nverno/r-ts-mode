@@ -47,8 +47,36 @@
   :safe 'integerp
   :group 'R)
 
+(defcustom r-ts-mode-align-arguments t
+  "When non-nil, align function arguments with the first argument.
+
+For example, when non-nil, align arguments like:
+
+    labs(title = \"....\",
+         x = \"Date\")
+    labs(
+      title = \"....\",
+      x = \"Date\")
+
+Otherwise, when nil, arguments are indented with `r-ts-mode-indent-offset'."
+  :type 'boolean
+  :safe 'booleanp
+  :group 'R)
+
 
 ;;; Indentation
+
+(defun r-ts-mode--anchor-args (&rest args)
+  "Calculate indentation anchor for function arguments.
+See `treesit-simple-indent-rules' for details of ARGS."
+  (apply (if r-ts-mode-align-arguments
+             (funcall (alist-get 'nth-sibling treesit-simple-indent-presets) 1)
+           (alist-get 'standalone-parent treesit-simple-indent-presets))
+         args))
+
+(defun r-ts-mode--indent-args (&rest _)
+  "Calculate indent offest for arguments."
+  (if r-ts-mode-align-arguments 0 r-ts-mode-indent-offset))
 
 (defvar r-ts-mode--indent-rules
   `((r
@@ -67,11 +95,11 @@
      ((parent-is "binary_operator") parent-bol r-ts-mode-indent-offset)
      ((parent-is "function_definition") parent-bol r-ts-mode-indent-offset)
      ((parent-is "parameters") parent-bol r-ts-mode-indent-offset)
-     ;; To align arguments:
-     ;; ((match "argument" nil nil 1 1) standalone-parent r-ts-mode-indent-offset)
-     ;; ((parent-is "arguments") (nth-sibling 1) 0)
+     ;; Arguments
      ((node-is "arguments") parent-bol r-ts-mode-indent-offset)
-     ((parent-is "arguments") standalone-parent r-ts-mode-indent-offset)
+     ((match "argument" nil nil 1 1) standalone-parent r-ts-mode-indent-offset)
+     ((parent-is "arguments") r-ts-mode--anchor-args r-ts-mode--indent-args)
+
      ((parent-is "string") no-indent)
      (no-node parent-bol 0)))
   "Tree-sitter indent rules for R.")
@@ -160,7 +188,7 @@
    '((parameter
       name: (identifier) @font-lock-variable-name-face)
      (argument
-      name: (identifier) @font-lock-property-name-face)
+      name: (identifier) @font-lock-property-use-face)
 
      (binary_operator
       lhs: (identifier) @font-lock-function-name-face
