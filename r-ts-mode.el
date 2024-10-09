@@ -327,17 +327,22 @@ See `treesit-simple-indent-rules' for details of ARGS."
     (setq-local paragraph-start (concat "\\s-*$\\|" page-delimiter))
     (setq-local paragraph-separate (concat "\\s-*$\\|" page-delimiter))
     (setq-local paragraph-ignore-fill-prefix t)
-    (setq-local electric-layout-rules '((?{ . after)))
     (setq-local add-log-current-defun-header-regexp
                 "^\\(.+\\)\\s-+<-[ \t\n]*function")
 
     (when (require 'ess-r-mode nil t)
       (setq-local prettify-symbols-alist ess-r-prettify-symbols)
-
       ;; For inferior ess
       (ess-setq-vars-local ess-r-customize-alist))
 
     ;; Indentation
+    (setq-local electric-indent-chars
+                (append "{}()," (if (boundp 'electric-indent-chars)
+                                    electric-indent-chars
+                                  '(?\n))))
+    (setq-local electric-layout-rules
+                `((?\{ . after) (?\} . before)
+                  (?\, . after) (?\) . before)))
     (setq-local treesit-simple-indent-rules r-ts-mode--indent-rules
                 indent-tabs-mode nil)
 
