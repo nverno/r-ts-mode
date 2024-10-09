@@ -47,18 +47,23 @@
   :safe 'integerp
   :group 'R)
 
-(defcustom r-ts-mode-align-arguments t
-  "When non-nil, align function arguments with the first argument.
+(defcustom r-ts-mode-align-args 'parameters
+  "When non-nil, left-align function arguments and/or parameters.
 
-For example, when non-nil, align arguments like:
+For example, left-aligning parameters causes them to be aligned with their first
+sibling:
 
-    labs(title = \"....\",
-         x = \"Date\")
-    labs(
-      title = \"....\",
-      x = \"Date\")
+    g <- function(mapping = NULL,
+                  data = NULL,
+                  ...)
 
-Otherwise, when nil, arguments are indented with `r-ts-mode-indent-offset'."
+    f <- function(
+      mapping = NULL,
+      data = NULL,
+      ...)
+
+The special values \\='parameters or \\='arguments mean to align only parameters
+or arguments, respectively. Any other non-nil value means to align both."
   :type 'boolean
   :safe 'booleanp
   :group 'R)
@@ -66,17 +71,28 @@ Otherwise, when nil, arguments are indented with `r-ts-mode-indent-offset'."
 
 ;;; Indentation
 
-(defun r-ts-mode--anchor-args (&rest args)
+(defun r-ts-mode--align-args-p (parent)
+  (when-let ((typ (and r-ts-mode-align-args
+                       (treesit-node-type parent))))
+    (pcase r-ts-mode-align-args
+      ('parameters (equal "parameters" typ))
+      ('arguments (equal "arguments" typ))
+      (_ t))))
+
+(defun r-ts-mode--anchor-args (n parent &rest args)
   "Calculate indentation anchor for function arguments.
 See `treesit-simple-indent-rules' for details of ARGS."
-  (apply (if r-ts-mode-align-arguments
-             (funcall (alist-get 'nth-sibling treesit-simple-indent-presets) 1)
+  (apply (if (r-ts-mode--align-args-p parent)
+             (funcall (alist-get 'nth-sibling
+                                 treesit-simple-indent-presets)
+                      1)
            (alist-get 'standalone-parent treesit-simple-indent-presets))
-         args))
+         n parent args))
 
-(defun r-ts-mode--indent-args (&rest _)
+(defun r-ts-mode--indent-args (_n parent &rest _)
   "Calculate indent offest for arguments."
-  (if r-ts-mode-align-arguments 0 r-ts-mode-indent-offset))
+  (if (r-ts-mode--align-args-p parent) 0 r-ts-mode-indent-offset))
+
 
 (defvar r-ts-mode--indent-rules
   `((r
@@ -94,11 +110,13 @@ See `treesit-simple-indent-rules' for details of ARGS."
      ;; ((match "binary_operator" "if_statement") parent 0)
      ((parent-is "binary_operator") parent-bol r-ts-mode-indent-offset)
      ((parent-is "function_definition") parent-bol r-ts-mode-indent-offset)
-     ((parent-is "parameters") parent-bol r-ts-mode-indent-offset)
-     ;; Arguments
-     ((node-is "arguments") parent-bol r-ts-mode-indent-offset)
-     ((match "argument" nil nil 1 1) standalone-parent r-ts-mode-indent-offset)
-     ((parent-is "arguments") r-ts-mode--anchor-args r-ts-mode--indent-args)
+     ;; Arguments, Parameters
+     ((node-is ,(rx bol (or "parameters" "arguments")))
+      parent-bol r-ts-mode-indent-offset)
+     ((match ,(rx bol (or "parameter" "argument")) nil nil 1 1)
+      standalone-parent r-ts-mode-indent-offset)
+     ((parent-is ,(rx bol (or "parameters" "arguments")))
+      r-ts-mode--anchor-args r-ts-mode--indent-args)
 
      ((parent-is "string") no-indent)
      (no-node parent-bol 0)))
@@ -107,32 +125,34 @@ See `treesit-simple-indent-rules' for details of ARGS."
 
 ;;; Font-locking
 
-;; Keywords that are anonymous nodes in grammar
 (defconst r-ts-mode--keywords
-  '("if" "else" "repeat" "while" "for" "in" "function"))
+  '("if" "else" "repeat" "while" "for" "in" "function")
+  "R keywords that are anonymous nodes in grammar.")
 
-;; Keywords to highlight in call expressions
 (defconst r-ts-mode--keyword-calls
   '("on.exit" "stop" "stopifnot" ".Defunct" "tryCatch"
     "withRestarts" "invokeRestart"
-    "recover" "browser"))
+    "recover" "browser")
+  "R keywords to highlight in call expressions.")
 
-;; `ess-R-modifiers'
 (defconst r-ts-mode--modifiers
   '("library" "attach" "detach" "source" "require"
     "setwd" "options" "par" "load" "rm"
     "message" "warning" ".Deprecated"
-    "signalCondition" "withCallingHandlers"))
+    "signalCondition" "withCallingHandlers")
+  "R modifiers from `ess-R-modifiers'.")
 
 (defconst r-ts-mode--operators
   '("?" ":=" "=" "<-" "<<-" "->" "->>"
     "!" "~" "|>" "||" "|" "&&"  "&"
     "<" "<=" ">" ">=" "==" "!="
-    "+" "-" "*" "/" "::" ":::"
-    "**" "^" "$" "@" ":"
-    ;; "\\"
+    "+" "-" "*" "/" "**" "^"
     "special")
   "R operators for tree-sitter font-locking.")
+
+(defconst r-ts-mode--delimiters
+  '(":" "::" ":::" "$" "@")
+  "R delimiters for tree-sitter font-locking.")
 
 (defconst r-ts-mode--brackets
   '("(" ")" "[" "]" "[[" "]]" "{" "}")
@@ -140,10 +160,10 @@ See `treesit-simple-indent-rules' for details of ARGS."
 
 (defvar r-ts-mode-feature-list
   '(( comment definition)
-    ( keyword string escape-sequence)
-    ( builtin type constant number assignment function property)
-    ( operator variable bracket delimiter))
-  "`treesit-font-lock-feature-list' for `r-ts-mode'.")
+    ( escape-sequence keyword string)
+    ( builtin constant number property type)
+    ( bracket delimiter function operator variable))
+  "Features for `treesit-font-lock-feature-list' in `r-ts-mode'.")
 
 (defvar r-ts-mode--font-lock-settings
   (treesit-font-lock-rules
@@ -162,22 +182,20 @@ See `treesit-simple-indent-rules' for details of ARGS."
 
    :language 'r
    :feature 'keyword
-   `([,@r-ts-mode--keywords (dots) (break) (next) (return)] @font-lock-keyword-face
-
+   `([,@r-ts-mode--keywords (dots) (break) (next) (return)]
+     @font-lock-keyword-face
      (call
       function: ((identifier) @font-lock-keyword-face
                  (:match ,(rx-to-string
                            `(seq bos (or ,@r-ts-mode--keyword-calls) eos))
                          @font-lock-keyword-face)))
-
      (call
       function: ((identifier) @font-lock-preprocessor-face
                  (:match ,(rx-to-string
                            `(seq bos (or ,@r-ts-mode--modifiers) eos))
                          @font-lock-preprocessor-face)))
      ;; Lambda operator
-     (function_definition
-      name: "\\" @font-lock-keyword-face))
+     (function_definition name: "\\" @font-lock-keyword-face))
 
    :language 'r
    :feature 'operator
@@ -189,17 +207,14 @@ See `treesit-simple-indent-rules' for details of ARGS."
       name: (identifier) @font-lock-variable-name-face)
      (argument
       name: (identifier) @font-lock-property-use-face)
-
      (binary_operator
       lhs: (identifier) @font-lock-function-name-face
       operator: "<-"
       rhs: (function_definition))
-
      (binary_operator
       lhs: (identifier) @font-lock-variable-name-face
       operator: "<-"
       rhs: (_))
-
      (for_statement
       variable: (identifier) @font-lock-variable-name-face))
 
@@ -211,36 +226,30 @@ See `treesit-simple-indent-rules' for details of ARGS."
    :language 'r
    :feature 'type
    '((namespace_operator
-      lhs: (identifier) @font-lock-type-face))
+      lhs: (identifier) @font-lock-type-face)
+     [(nan) (na) "NA_integer_" "NA_real_" "NA_complex_" "NA_character_"]
+     @font-lock-type-face)
 
    :language 'r
    :feature 'constant
-   '([(true) (false) (null) (nan) (na) (inf)
-      "NA_integer_" "NA_real_" "NA_complex_" "NA_character_"]
-     @font-lock-constant-face)
+   '([(true) (false) (null) (inf)] @font-lock-constant-face)
 
    :language 'r
    :feature 'function
    '((call function: (identifier) @font-lock-function-call-face)
-
      (call function: (namespace_operator
                       rhs: (identifier) @font-lock-function-call-face))
-
      (call function: (extract_operator
                       rhs: (identifier) @font-lock-function-call-face)))
 
    :language 'r
    :feature 'property
-   '((extract_operator
-      rhs: (identifier) @font-lock-property-use-face))
-
-   ;; :language 'r
-   ;; :feature 'assignment
-   ;; '()
+   '((extract_operator rhs: (identifier) @font-lock-property-use-face))
 
    :language 'r
    :feature 'variable
-   '((identifier) @font-lock-variable-use-face)
+   '((extract_operator lhs: (identifier) @font-lock-variable-use-face)
+     (subset function: (identifier) @font-lock-variable-use-face))
 
    :language 'r
    :feature 'number
@@ -248,7 +257,7 @@ See `treesit-simple-indent-rules' for details of ARGS."
 
    :language 'r
    :feature 'delimiter
-   '([(comma)] @font-lock-delimiter-face)
+   `([(comma) ,@r-ts-mode--delimiters] @font-lock-delimiter-face)
 
    :language 'r
    :feature 'bracket
@@ -291,7 +300,7 @@ See `treesit-simple-indent-rules' for details of ARGS."
     (modify-syntax-entry ?$  "_"  table)  ; foo$comp = 1 symbol(completion)
     (modify-syntax-entry ?@  "_"  table)  ; foo@slot = 1 symbol(completion)
     (modify-syntax-entry ?_  "_"  table)
-    (modify-syntax-entry ?:  "_"  table)
+    (modify-syntax-entry ?:  "."  table)
     (modify-syntax-entry ?*  "."  table)
     (modify-syntax-entry ?<  "."  table)
     (modify-syntax-entry ?>  "."  table)
