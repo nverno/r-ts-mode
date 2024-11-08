@@ -72,8 +72,9 @@ or arguments, respectively. Any other non-nil value means to align both."
 ;;; Indentation
 
 (defun r-ts-mode--align-args-p (parent)
-  (when-let ((typ (and r-ts-mode-align-args
-                       (treesit-node-type parent))))
+  "Return non-nil when args/params should be aligned for PARENT node."
+  (when-let* ((typ (and r-ts-mode-align-args
+                        (treesit-node-type parent))))
     (pcase r-ts-mode-align-args
       ('parameters (equal "parameters" typ))
       ('arguments (equal "arguments" typ))
@@ -81,7 +82,7 @@ or arguments, respectively. Any other non-nil value means to align both."
 
 (defun r-ts-mode--anchor-args (n parent &rest args)
   "Calculate indentation anchor for function arguments.
-See `treesit-simple-indent-rules' for details of ARGS."
+See `treesit-simple-indent-rules' for details of N, PARENT and ARGS."
   (apply (if (r-ts-mode--align-args-p parent)
              (funcall (alist-get 'nth-sibling
                                  treesit-simple-indent-presets)
@@ -90,7 +91,8 @@ See `treesit-simple-indent-rules' for details of ARGS."
          n parent args))
 
 (defun r-ts-mode--indent-args (_n parent &rest _)
-  "Calculate indent offest for arguments."
+  "Calculate indent offest for arguments.
+See `treesit-simple-indent-rules' PARENT and rest of args."
   (if (r-ts-mode--align-args-p parent) 0 r-ts-mode-indent-offset))
 
 
